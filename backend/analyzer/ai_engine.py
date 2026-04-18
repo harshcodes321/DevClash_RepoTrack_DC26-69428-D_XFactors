@@ -23,9 +23,14 @@ Return a JSON object: {"files": ["path/to/file1", "path/to/file2"], "explanation
 Only return real file paths from the provided list. Return at most 5 files."""
 
 REPO_SUMMARY_SYSTEM_PROMPT = """You are a senior software architect.
-Given the README and top-level architecture of a repository, write a concise 2-3 paragraph summary of the whole repository.
-Focus on its primary purpose, core features, and overall tech stack or architecture.
-Respond with just the summary."""
+Given the README and top-level architecture of a repository, analyze the whole repository.
+You must return the summary strictly in the following numbered format:
+
+1) Detailed overview of the project
+2) Features offered and problem solved through the project
+3) The tech stack that is used
+
+Respond with just the summary and nothing else."""
 
 async def summarize_repository(repo_path: str, parsed_files: list[dict]) -> str:
     """Generate an AI summary for the whole repository based on README and top files."""
