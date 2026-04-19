@@ -123,3 +123,4 @@ cd frontend && npm run build
 # Set MISTRAL_API_KEY in environment variables
 # Start command: uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
+Contributors : Harsh Pawar(harshcodes321), Ayush Patil(Ayu9124)
