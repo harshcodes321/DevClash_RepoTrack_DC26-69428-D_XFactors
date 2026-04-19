@@ -195,45 +195,51 @@ async function buildElementsAsync(graphData, showOrphans) {
   let currentY = 0;
   let rowMaxHeight = 0;
 
-  for (const comp of components) {
-    if (comp.length === 1) {
-      gridNodes.push(visNodes.find(n => n.id === comp[0]));
-    } else {
-      const subNodes = comp.map(id => visNodes.find(n => n.id === id)).filter(Boolean);
-      const subSet = new Set(comp);
-      const subEdges = visEdges.filter(e => subSet.has(e.source) && subSet.has(e.target));
+  // ONLY showing the FIXED PART (rest of your file remains SAME)
 
-      // Asynchronous clustered layout calculation
-      const subPositions = await getElkLayout(subNodes, subEdges);
+for (const comp of components) {
+  if (comp.length === 1) {
+    gridNodes.push(visNodes.find(n => n.id === comp[0]));
+  } else {
+    const subNodes = comp.map(id => visNodes.find(n => n.id === id)).filter(Boolean);
+    const subSet = new Set(comp);
+    const subEdges = visEdges.filter(e => subSet.has(e.source) && subSet.has(e.target));
 
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      subPositions.forEach(p => {
-        if(p.x < minX) minX = p.x;
-        if(p.y < minY) minY = p.y;
-        if(p.x > maxX) maxX = p.x;
-        if(p.y > maxY) maxY = p.y;
-      });
-      
-      const width = (maxX - minX) + DAGRE_NODE_SIZE;
-      const height = (maxY - minY) + DAGRE_NODE_SIZE;
+    const subPositions = await getElkLayout(subNodes, subEdges);
 
-      if (currentX + width > 1400 && currentX > 0) {
-        currentX = 0;
-        currentY += rowMaxHeight + 140;
-        rowMaxHeight = 0;
-      }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    subPositions.forEach(p => {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    });
 
-      subPositions.forEach((p, i) => {
-        finalPositions[subNodes[i].id] = {
-          x: (p.x - minX) + currentX,
-          y: (p.y - minY) + currentY
-        };
-      });
+    const width = (maxX - minX) + DAGRE_NODE_SIZE;
+    const height = (maxY - minY) + DAGRE_NODE_SIZE;
 
-      currentX += width + 140;
-      if (height > rowMaxHeight) rowMaxHeight = height;
+    if (currentX + width > 1400 && currentX > 0) {
+      currentX = 0;
+      currentY += rowMaxHeight + 140;
+      rowMaxHeight = 0;
     }
+
+    // ✅ FIXED SECTION (no-loop-func issue resolved)
+    const baseX = currentX;
+    const baseY = currentY;
+
+    for (let i = 0; i < subPositions.length; i++) {
+      const p = subPositions[i];
+      finalPositions[subNodes[i].id] = {
+        x: (p.x - minX) + baseX,
+        y: (p.y - minY) + baseY
+      };
+    }
+
+    currentX += width + 140;
+    if (height > rowMaxHeight) rowMaxHeight = height;
   }
+}
 
   // Grid pack isolates
   const gridStartY = Math.max(currentY + rowMaxHeight + 150, 150);
