@@ -77,26 +77,22 @@ def build_graph(parsed_files: list[dict]) -> dict:
         if is_entry:
             raw_importance = max(raw_importance, 0.6)
 
-        NON_ORPHAN_PATTERN = {
-            "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
-            "tsconfig.json", "jsconfig.json", "requirements.txt", "pyproject.toml", 
-            "pipfile", "pipfile.lock", "readme.md", "license", "makefile", "dockerfile",
-            ".gitignore", ".dockerignore", ".eslintrc", ".eslintrc.json", ".eslintrc.js",
-            ".prettierrc", "setup.py", "setup.cfg"
-        }
-
         in_edges = list(G.predecessors(node))
         out_edges = list(G.successors(node))
         is_orphan = len(in_edges) == 0 and len(out_edges) == 0
         
-        # Don't mark package, config, or documentation files as orphans
-        if is_orphan and (
-            filename in NON_ORPHAN_PATTERN or 
-            filename.endswith(".config.js") or 
-            filename.endswith(".config.ts") or 
-            filename.endswith(".md")
-        ):
-            is_orphan = False
+        # Dead code (orphans) should ONLY apply to actual source code that is meant to be imported.
+        # It doesn't make sense to call a .json, .md, .yaml, .txt, or generic config file "dead code".
+        if is_orphan:
+            file_ext = Path(node).suffix.lower()
+            SOURCE_CODE_EXTS = {".py", ".js", ".jsx", ".ts", ".tsx", ".dart", ".java", ".cpp", ".h", ".c", ".go", ".rb", ".php", ".cs", ".swift", ".kt", ".rs"}
+            
+            # If it's not a source code file, it's not an orphan
+            if file_ext not in SOURCE_CODE_EXTS:
+                is_orphan = False
+            # Furthermore, if it has 'config' in the name or is a dotfile setup script, it shouldn't be an orphan.
+            elif "config" in filename or filename.startswith(".") or filename in {"setup.py", "manage.py", "manage.ts"}:
+                is_orphan = False
 
         nodes.append({
             "id": node,
