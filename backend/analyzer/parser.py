@@ -14,11 +14,7 @@ try:
 except Exception:
     TS_AVAILABLE = False
 
-SUPPORTED_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx",
-    ".java", ".go", ".rb", ".php", ".cs", ".cpp", ".c", ".h",
-    ".json", ".md", ".yml", ".yaml", ".env", ".gitignore", ".txt", ".sh", ".bat", ".toml", ".ini",
-}
+# No hardcoded extensions - we extract from all files that pass UTF-8 strict boundary.
 
 SKIP_DIRS = {
     "node_modules", ".git", "__pycache__", ".venv", "venv",
@@ -63,6 +59,14 @@ def parse_js_imports(content: str) -> list[str]:
     return imports
 
 
+def parse_dart_imports(content: str) -> list[str]:
+    """Extract import targets from Dart/Flutter source."""
+    imports = []
+    for m in re.finditer(r'import\s+[\'"]([^\'"]+)[\'"]', content):
+        imports.append(m.group(1))
+    return imports
+
+
 def get_functions_classes(content: str, ext: str) -> dict:
     """Extract function/class names from code."""
     functions = []
@@ -80,33 +84,42 @@ def get_functions_classes(content: str, ext: str) -> dict:
         except SyntaxError:
             pass
     elif ext in {".js", ".ts", ".jsx", ".tsx"}:
-        # Regex-based extraction for JS/TS
-        for m in re.finditer(r'(?:function\s+(\w+)|const\s+(\w+)\s*=\s*(?:async\s*)?\()', content):
+        # Regex-based extraction for JS/TS (handles function declarations and arrow components)
+        for m in re.finditer(r'(?:function\s+(\w+)|const\s+(\w+)\s*=\s*(?:async\s*)?(?:\([^\)]*\)|\w+)\s*=>)', content):
             name = m.group(1) or m.group(2)
             if name:
                 functions.append(name)
         for m in re.finditer(r'class\s+(\w+)', content):
             classes.append(m.group(1))
+    elif ext == ".dart":
+        # Extract Dart classes
+        for m in re.finditer(r'class\s+(\w+)', content):
+            classes.append(m.group(1))
+        # Extract Dart functions & methods
+        for m in re.finditer(r'(?:void|int|String|bool|Widget|List|Map|Set|Future|var|Dynamic)\s+(\w+)\s*\(', content):
+            functions.append(m.group(1))
 
     return {"functions": functions[:20], "classes": classes[:10]}
 
 
 def parse_file(file_path: Path, repo_root: Path) -> Optional[dict]:
     """Parse a single file and return its metadata."""
-    ext = file_path.suffix.lower()
-    if ext not in SUPPORTED_EXTENSIONS:
-        return None
     if should_skip(file_path):
         return None
 
     try:
-        content = file_path.read_text(encoding="utf-8", errors="ignore")
+        # Skip overly large files to preserve memory (e.g., > 1MB)
+        if file_path.stat().st_size > 1_000_000:
+            return None
+        # Use strict UTF-8 decoding. If it fails, it's likely a binary file (e.g., PNG, EXE), so we skip it.
+        content = file_path.read_text(encoding="utf-8")
     except Exception:
         return None
 
     if not content.strip():
         return None
 
+    ext = file_path.suffix.lower()
     rel_path = str(file_path.relative_to(repo_root)).replace("\\", "/")
 
     # Extract imports
@@ -114,6 +127,8 @@ def parse_file(file_path: Path, repo_root: Path) -> Optional[dict]:
         raw_imports = parse_python_imports(content, rel_path)
     elif ext in {".js", ".ts", ".jsx", ".tsx"}:
         raw_imports = parse_js_imports(content)
+    elif ext == ".dart":
+        raw_imports = parse_dart_imports(content)
     else:
         raw_imports = []
 

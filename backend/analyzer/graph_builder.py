@@ -7,6 +7,7 @@ ENTRY_POINT_NAMES = {
     "index.js", "app.js", "server.js", "main.js",
     "index.ts", "app.ts", "server.ts", "main.ts",
     "index.jsx", "app.jsx", "index.tsx", "app.tsx",
+    "main.dart",
 }
 
 
@@ -76,9 +77,26 @@ def build_graph(parsed_files: list[dict]) -> dict:
         if is_entry:
             raw_importance = max(raw_importance, 0.6)
 
+        NON_ORPHAN_PATTERN = {
+            "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+            "tsconfig.json", "jsconfig.json", "requirements.txt", "pyproject.toml", 
+            "pipfile", "pipfile.lock", "readme.md", "license", "makefile", "dockerfile",
+            ".gitignore", ".dockerignore", ".eslintrc", ".eslintrc.json", ".eslintrc.js",
+            ".prettierrc", "setup.py", "setup.cfg"
+        }
+
         in_edges = list(G.predecessors(node))
         out_edges = list(G.successors(node))
         is_orphan = len(in_edges) == 0 and len(out_edges) == 0
+        
+        # Don't mark package, config, or documentation files as orphans
+        if is_orphan and (
+            filename in NON_ORPHAN_PATTERN or 
+            filename.endswith(".config.js") or 
+            filename.endswith(".config.ts") or 
+            filename.endswith(".md")
+        ):
+            is_orphan = False
 
         nodes.append({
             "id": node,
@@ -140,13 +158,13 @@ def resolve_import(import_str: str, src_file: str, module_index: dict, path_inde
         return module_index[stem]
 
     # Try common extensions
-    for ext in [".py", ".js", ".ts", ".jsx", ".tsx"]:
+    for ext in [".py", ".js", ".ts", ".jsx", ".tsx", ".dart"]:
         candidate = imp + ext
         if candidate in path_index:
             return candidate
 
     # Try as directory index
-    for ext in [".py", ".js", ".ts"]:
+    for ext in [".py", ".js", ".ts", ".dart"]:
         candidate = imp + "/index" + ext
         if candidate in path_index:
             return candidate
